@@ -1,0 +1,887 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow">
+<title>Raid Snapshot</title>
+<style>
+  /* Always dark: a game is running alongside. Palette from the Raids tab prototype (variant L1). */
+  :root {
+    color-scheme: dark;
+    --surface-0: #121211; --surface-1: #1a1a19; --surface-2: #232321; --line: #33332f;
+    --text-primary: #f0efec; --text-secondary: #c3c2b7; --text-muted: #8f8e86;
+    --accent: #3987e5; --good: #0ca30c; --critical: #d03b3b; --neutral: #7a7972;
+    --seq-0: #1a1a19; --seq-1: #104281; --seq-2: #1c5cab; --seq-3: #2a78d6; --seq-4: #5598e7; --seq-5: #9ec5f4;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--surface-0); color: var(--text-primary); font: 13px/1.45 system-ui, "Segoe UI", sans-serif; }
+  header { display: flex; align-items: center; gap: 18px; padding: 8px 16px; background: var(--surface-1); border-bottom: 1px solid var(--line); position: sticky; top: 0; z-index: 5; }
+  header b { font-size: 14px; }
+  nav { display: flex; gap: 4px; }
+  nav a { color: var(--text-muted); text-decoration: none; padding: 4px 10px; border-radius: 6px; }
+  nav a[aria-current="page"] { color: var(--text-primary); background: var(--surface-2); }
+  main { max-width: 1400px; margin: 0 auto; padding: 14px 16px 24px; }
+  h2 { font-size: 14px; margin: 0 0 8px; } h2 .muted { font-weight: 400; }
+  .muted { color: var(--text-muted); } .sec { color: var(--text-secondary); } .error { color: var(--critical); }
+  .card { background: var(--surface-1); border: 1px solid var(--line); border-radius: 10px; padding: 12px 14px; margin-bottom: 14px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-variant-numeric: tabular-nums; }
+  th, td { text-align: left; padding: 4px 8px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+  th { color: var(--text-muted); font-weight: 500; }
+  .n { text-align: right; }
+  tbody tr:hover { background: var(--surface-2); }
+  tr.pick { cursor: pointer; } tr.on { background: var(--surface-2); box-shadow: inset 3px 0 0 var(--accent); }
+  tr.week td { color: var(--text-muted); font-size: 12px; border-bottom: 0; padding-top: 10px; }
+  .tag { font-size: 11px; padding: 1px 6px; border-radius: 6px; background: var(--surface-2); color: var(--text-secondary); margin-left: 4px; }
+  .st { display: inline-flex; gap: 5px; align-items: center; } .st i { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .kill i { background: var(--good); } .wipe i { background: var(--critical); } .other i { background: var(--neutral); }
+  .pbar { height: 8px; background: var(--surface-2); border-radius: 4px; overflow: hidden; width: 140px; display: inline-block; vertical-align: middle; margin-right: 6px; }
+  .pbar b { display: block; height: 100%; background: var(--accent); border-radius: 0 4px 4px 0; }
+  .warn { border-left: 3px solid var(--neutral); padding: 6px 10px; background: var(--surface-2); border-radius: 4px; margin: 0 0 8px; color: var(--text-secondary); }
+  .grid th, .grid td { text-align: center; padding: 2px; border-bottom: 0; } .grid td:first-child, .grid th:first-child { text-align: left; padding-left: 4px; }
+  .cell { margin: 0 auto; min-width: 26px; height: 20px; line-height: 16px; font-size: 11px; border: 2px solid var(--surface-1); border-radius: 4px; padding: 0 2px; }
+  button { font: inherit; font-size: 12px; background: var(--surface-2); color: var(--text-secondary); border: 1px solid var(--line); border-radius: 6px; padding: 2px 8px; cursor: pointer; }
+  button:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .add { margin-left: 6px; font-size: 11px; padding: 0 6px; }
+  .badge { font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--accent); color: var(--text-primary); margin-left: 4px; }
+  dialog { background: var(--surface-1); color: var(--text-primary); border: 1px solid var(--line); border-radius: 10px; padding: 16px; max-width: 380px; }
+  dialog::backdrop { background: rgb(0 0 0 / .6); }
+  dialog label { display: block; margin: 10px 0 4px; color: var(--text-secondary); }
+  dialog input { font: inherit; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--line); border-radius: 6px; padding: 4px 6px; color-scheme: dark; }
+  dialog .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 14px; }
+  .controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 8px; }
+  .controls label { color: var(--text-secondary); display: inline-flex; align-items: center; gap: 6px; }
+  .controls input, .controls select { font: inherit; background: var(--surface-2); color: var(--text-primary); border: 1px solid var(--line); border-radius: 6px; padding: 2px 6px; color-scheme: dark; }
+  .controls input { width: 64px; }
+  .controls .spacer { flex: 1; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; }
+  .chips button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+  th[data-sort] { cursor: pointer; user-select: none; }
+  th[aria-sort="ascending"]::after { content: " ▲"; font-size: 9px; }
+  th[aria-sort="descending"]::after { content: " ▼"; font-size: 9px; }
+  .caret { display: inline-block; width: 14px; color: var(--text-muted); }
+  tr.detail > td { padding: 4px 8px 10px 22px; background: var(--surface-1); }
+  table.shopping { width: auto; min-width: 360px; }
+  table.shopping th, table.shopping td { border-bottom-color: var(--surface-2); padding: 2px 10px 2px 0; }
+  table.shopping tr.stop td { color: var(--text-primary); font-weight: 600; padding-top: 6px; }
+  table.shopping tr:not(.stop) td:first-child { padding-left: 12px; }
+  .tag.stale { background: var(--critical); color: #fff; }
+  /* ≈DPS cards (raid-report ticket 24): stoplight dots, cyan for a new personal best */
+  .fhead { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; } .fhead .spacer { flex: 1; }
+  .fhead label { color: var(--text-secondary); display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+  .cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+  .pcard { background: var(--surface-2); border-radius: 8px; padding: 10px 12px; }
+  .pcard .who { font-weight: 600; } .pcard .head { font-size: 15px; margin: 4px 0 2px; } .pcard .foot { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .head.up { color: #6fdc6f; } .head.flat { color: var(--text-secondary); } .head.down { color: #e07a7a; } .head.soft { color: var(--text-muted); }
+  .d-best { fill: #38d0f0; } .d-above { fill: #1f9d3a; } .d-usual { fill: #d9a21b; } .d-below { fill: #c83a3a; } .d-new { fill: var(--text-muted); }
+  .legend { display: flex; flex-wrap: wrap; gap: 4px 14px; margin: 8px 0 0; color: var(--text-muted); font-size: 12px; }
+  svg.key { vertical-align: -1px; margin-right: 5px; }
+  .mk { font-size: 11px; padding: 1px 6px; border-radius: 6px; border: 1px solid var(--line); color: var(--text-primary); white-space: nowrap; }
+  .mk.good { border-color: var(--good); } .mk.close { border-color: var(--text-muted); } .mk.work { border-color: var(--critical); }
+  .score { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: flex-start; } .score > div { flex: 1 1 260px; min-width: 0; }
+  .big { font-size: 30px; font-weight: 600; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 10px; }
+  svg.weeks { width: 100%; max-width: 420px; height: auto; display: block; }
+  svg.weeks text { fill: var(--text-muted); font-size: 9px; }
+  svg.weeks .guide { stroke: var(--line); stroke-dasharray: 3 3; }
+  svg.weeks .line { fill: none; stroke: var(--accent); stroke-width: 2; stroke-linejoin: round; }
+  svg.weeks circle { fill: var(--accent); stroke: var(--surface-1); stroke-width: 2; }
+  svg.weeks circle.on { stroke: var(--text-primary); }
+  svg.weeks circle.hit { fill: transparent; stroke: none; }
+  .levels { display: inline-flex; flex-wrap: wrap; gap: 4px 10px; align-items: center; color: var(--text-secondary); }
+  .levels input { width: auto; margin: 0 3px 0 0; }
+  @media (max-width: 600px) {
+    main { padding: 10px; }
+    header { gap: 10px; padding: 8px 10px; }
+    th, td { padding: 4px 6px; }
+    table.shopping { min-width: 0; }
+  }
+  /* Collections tab (collection-planner ticket 03) */
+  img.ci { width: 24px; height: 24px; vertical-align: middle; border-radius: 4px; background: var(--surface-2); }
+  td.how { white-space: normal; color: var(--text-secondary); min-width: 220px; }
+  /* Mount drops (dashboard ticket 04) */
+  h3 { font-size: 13px; margin: 4px 0 8px; } h3 .muted { font-weight: 400; }
+  .mount { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: center; margin-bottom: 8px; }
+  svg.pie path, svg.pie circle { stroke: var(--surface-1); stroke-width: 2; stroke-linejoin: round; }
+  svg.pie path:hover, svg.pie circle:hover { stroke: var(--text-primary); }
+  .pie-legend { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: auto auto auto; gap: 4px 10px; align-items: center; }
+  .pie-legend li { display: contents; }
+  .pie-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; box-shadow: inset 0 0 0 1px var(--line); margin-right: 6px; vertical-align: -1px; }
+  table.mount-who td { border-bottom-color: var(--surface-2); }
+  #tip { position: fixed; pointer-events: none; background: var(--surface-2); border: 1px solid var(--line); border-radius: 6px; padding: 6px 8px; font-size: 12px; display: none; z-index: 20; max-width: 320px; }
+  footer { color: var(--text-muted); font-size: 11px; padding: 12px 16px; border-top: 1px solid var(--line); }
+</style>
+</head>
+<body>
+<header>
+  <b>FF14 Dashboard</b>
+  <nav>
+    <a href="#profit" data-tab="profit">Profit</a>
+    <a href="#raids" data-tab="raids">Raids</a>
+    <a href="#rotation" data-tab="rotation">Rotation</a>
+    <a href="#collections" data-tab="collections">Collections</a>
+  </nav>
+</header>
+<main>
+  <section id="tab-profit" hidden>
+    <div class="controls">
+      <div class="chips" id="job-chips" role="group" aria-label="Craft"></div>
+      <label>Sold/day ≥ <input type="number" id="min-velocity" min="0" step="0.5" inputmode="decimal"></label>
+      <label>Rows <select id="top"><option>10</option><option>25</option><option>50</option><option>100</option></select></label>
+      <span class="spacer"></span>
+      <span class="muted" id="profit-updated"></span>
+      <button id="copy-discord" title="Copy the table as a Discord message (fits the 2000-character limit)">Copy for Discord</button>
+      <button id="refresh" title="Fetch prices again (they're cached for 5 minutes)">Refresh</button>
+    </div>
+    <p class="muted" id="profit-meta">Loading prices…</p>
+    <div class="scroll">
+      <table id="profit-table">
+        <thead><tr>
+          <th data-sort="item">Item</th><th data-sort="job">Job</th><th class="n" data-sort="yield">Yield</th>
+          <th class="n" data-sort="sellUnitPrice">Sell</th><th class="n" data-sort="nqSellUnitPrice" data-tip="What it sells for NQ, for items that can be HQ">NQ</th><th class="n" data-sort="cost">Cost</th>
+          <th class="n" data-sort="profit">Profit</th><th class="n" data-sort="margin">Margin</th><th class="n" data-sort="dailyVelocity">Sold/day</th>
+          <th class="n" data-sort="hourly" data-tip="Profit per hour at the bench: 60s per HQ craft, 20s per NQ or intermediate craft. Sorting by it fetches the best by gil per hour">Gil/hr</th>
+          <th class="n" data-sort="daily" data-tip="Profit a day if you sell 25% of what sells a day. Sorting by it fetches the best by gil per day">Gil/day</th>
+        </tr></thead>
+        <tbody id="profit-rows"></tbody>
+      </table>
+    </div>
+    <p class="muted">Click a row for its shopping list. Prices refresh every 5 minutes while this tab is open.</p>
+  </section>
+  <section id="tab-raids" hidden><p class="muted">Loading raids…</p></section>
+  <section id="tab-rotation" hidden><p class="muted">Loading rotation feedback…</p></section>
+  <section id="tab-collections" hidden><p class="muted">Loading your collection from FFXIV Collect…</p></section>
+</main>
+<footer id="footer"></footer>
+<div id="tip"></div>
+<dialog id="add-dialog">
+  <form method="dialog" id="add-form">
+    <h2 id="add-title"></h2>
+    <p class="sec" style="margin:0">Their past pulls will count as Static.</p>
+    <label for="add-joined">Joined on (optional: leave empty to count all history)</label>
+    <input type="date" id="add-joined">
+    <p class="error" id="add-error"></p>
+    <div class="row"><button value="cancel" formnovalidate>Cancel</button><button value="ok" class="primary" id="add-ok">Add to Static</button></div>
+  </form>
+</dialog>
+<script>window.SNAPSHOT = {"takenAt":"2026-11-26T01:11:28.054Z","api":{"/api/raids/nights":[{"night":"2026-11-22T19-28-28.jsonl","date":"2026-11-22","dutyId":1017,"duty":"the Minstrel's Ballad: Sphene's Burden","contentType":"extreme","pulls":15,"kills":6,"killRate":0.4,"best":100,"median":81,"topEndedBy":"fell or knocked off (during Gravitational Empire)","warnings":[]}],"/api/raids/people":[{"person":"K'lyra Androyd","world":"Siren","static":true,"me":true,"nights":1,"pulls":15,"jobs":["WAR"],"suggest":false},{"person":"Eveso Windsor","world":"Malboro","static":true,"me":false,"nights":1,"pulls":15,"jobs":["AST"],"suggest":false},{"person":"F'reyja Njoror","world":"Cactuar","static":true,"me":false,"nights":1,"pulls":4,"jobs":["RPR"],"suggest":false},{"person":"Gridiah Nailo","world":"Kraken","static":true,"me":false,"nights":1,"pulls":15,"jobs":["WAR"],"suggest":false},{"person":"Reena Tsinghahla","world":null,"static":true,"me":false,"nights":1,"pulls":15,"jobs":["BLM"],"suggest":false},{"person":"Tom Bruise","world":"Exodus","static":true,"me":false,"nights":1,"pulls":15,"jobs":["NIN"],"suggest":false},{"person":"Quios Haakon","world":"Behemoth","static":false,"me":false,"nights":1,"pulls":11,"jobs":["RDM","SAM"],"suggest":false},{"person":"Sol Destreya","world":"Ultros","static":false,"me":false,"nights":1,"pulls":15,"jobs":["MNK"],"suggest":false},{"person":"Xuko Auyani","world":"Balmung","static":false,"me":false,"nights":1,"pulls":15,"jobs":["WHM"],"suggest":false}],"/api/raids/night/2026-11-22T19-28-28.jsonl":{"night":"2026-11-22T19-28-28.jsonl","date":"2026-11-22","warnings":[],"duties":[{"dutyId":1017,"duty":"the Minstrel's Ballad: Sphene's Burden","contentType":"extreme","stats":{"pulls":15,"kills":6,"killRate":0.4,"best":100,"median":81},"pulls":[{"id":1,"n":1,"outcome":"wipe","seconds":411,"progress":67,"lastMechanic":"Drear Rising","furthestYet":false,"partyDps":154081,"echo":0,"partyDpsWithoutEcho":154081,"deaths":20,"firstDeath":"fell or knocked off","endedBy":"Drear Rising"},{"id":2,"n":2,"outcome":"wipe","seconds":218,"progress":53,"lastMechanic":"Meteor Impact","furthestYet":false,"partyDps":198944,"echo":5,"partyDpsWithoutEcho":189470,"deaths":8,"firstDeath":"fell or knocked off (during Gravitational Empire)","endedBy":"fell or knocked off (during Gravitational Empire)"},{"id":3,"n":3,"outcome":"kill","seconds":405,"progress":100,"lastMechanic":"Dying Memory","furthestYet":false,"partyDps":203103,"echo":10,"partyDpsWithoutEcho":184639,"deaths":0,"firstDeath":null,"endedBy":null},{"id":4,"n":4,"outcome":"kill","seconds":470,"progress":100,"lastMechanic":"Royal Banishment","furthestYet":false,"partyDps":173226,"echo":0,"partyDpsWithoutEcho":173226,"deaths":5,"firstDeath":"Atomic Ray","endedBy":null},{"id":5,"n":5,"outcome":"wipe","seconds":41,"progress":7,"lastMechanic":"Retribute","furthestYet":false,"partyDps":237404,"echo":0,"partyDpsWithoutEcho":237404,"deaths":8,"firstDeath":"Aethertithe","endedBy":"Aethertithe"},{"id":6,"n":6,"outcome":"wipe","seconds":431,"progress":81,"lastMechanic":"Tyranny's Grasp","furthestYet":false,"partyDps":186026,"echo":0,"partyDpsWithoutEcho":186026,"deaths":9,"firstDeath":"fell or knocked off (during World Shatter)","endedBy":"fell or knocked off (during Tyranny's Grasp)"},{"id":7,"n":7,"outcome":"kill","seconds":458,"progress":100,"lastMechanic":"Royal Banishment","furthestYet":false,"partyDps":176752,"echo":5,"partyDpsWithoutEcho":168335,"deaths":7,"firstDeath":"fell or knocked off (during World Shatter)","endedBy":null},{"id":8,"n":8,"outcome":"kill","seconds":441,"progress":100,"lastMechanic":"Dying Memory","furthestYet":false,"partyDps":185490,"echo":0,"partyDpsWithoutEcho":185490,"deaths":2,"firstDeath":"fell or knocked off (during World Shatter)","endedBy":null},{"id":9,"n":9,"outcome":"wipe","seconds":225,"progress":53,"lastMechanic":"Meteor Impact","furthestYet":false,"partyDps":180451,"echo":0,"partyDpsWithoutEcho":180451,"deaths":10,"firstDeath":"Legitimate Force","endedBy":"Gravitational Empire"},{"id":10,"n":10,"outcome":"wipe","seconds":217,"progress":53,"lastMechanic":"Meteor Impact","furthestYet":false,"partyDps":202073,"echo":5,"partyDpsWithoutEcho":192450,"deaths":9,"firstDeath":"Aethertithe","endedBy":"fell or knocked off (during Gravitational Empire)"},{"id":11,"n":11,"outcome":"kill","seconds":395,"progress":100,"lastMechanic":"Dying Memory","furthestYet":false,"partyDps":210238,"echo":10,"partyDpsWithoutEcho":191125,"deaths":0,"firstDeath":null,"endedBy":null},{"id":12,"n":12,"outcome":"wipe","seconds":225,"progress":53,"lastMechanic":"Meteor Impact","furthestYet":false,"partyDps":213111,"echo":0,"partyDpsWithoutEcho":213111,"deaths":8,"firstDeath":"fell or knocked off","endedBy":"fell or knocked off"},{"id":13,"n":13,"outcome":"kill","seconds":404,"progress":100,"lastMechanic":"Dying Memory","furthestYet":false,"partyDps":199645,"echo":5,"partyDpsWithoutEcho":190138,"deaths":5,"firstDeath":"Prosecution of War","endedBy":null},{"id":14,"n":14,"outcome":"wipe","seconds":258,"progress":58,"lastMechanic":"World Shatter","furthestYet":false,"partyDps":193715,"echo":0,"partyDpsWithoutEcho":193715,"deaths":10,"firstDeath":"Gravitational Empire","endedBy":"World Shatter"},{"id":15,"n":15,"outcome":"truncated","seconds":397,"progress":98,"lastMechanic":"Dying Memory","furthestYet":false,"partyDps":204142,"echo":5,"partyDpsWithoutEcho":194421,"deaths":1,"firstDeath":"Divide and Conquer","endedBy":null}],"deaths":[{"mechanic":"Meteor Impact","total":24,"perPull":[{"count":0,"endedPull":false},{"count":5,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":7,"endedPull":false},{"count":5,"endedPull":false},{"count":0,"endedPull":false},{"count":7,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Atomic Ray","total":9,"perPull":[{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":3,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Drear Rising","total":8,"perPull":[{"count":8,"endedPull":true},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"World Shatter","total":8,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":8,"endedPull":true},{"count":0,"endedPull":false}]},{"mechanic":"Retribute","total":7,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":7,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Gravitational Empire","total":6,"perPull":[{"count":0,"endedPull":false},{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":true},{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Tyranny's Grasp","total":6,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":6,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Rush","total":5,"perPull":[{"count":5,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"fell or knocked off","total":4,"perPull":[{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":true},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"fell or knocked off (during World Shatter)","total":4,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":1,"endedPull":false},{"count":1,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Absolute Authority","total":2,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Aethertithe","total":2,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":true},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"auto-attack","total":2,"perPull":[{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Dimensional Distortion","total":2,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"fell or knocked off (during Gravitational Empire)","total":2,"perPull":[{"count":0,"endedPull":false},{"count":1,"endedPull":true},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":true},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"fell or knocked off (during Legitimate Force)","total":2,"perPull":[{"count":2,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"fell or knocked off (during Tyranny's Grasp)","total":2,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":2,"endedPull":true},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Prosecution of War","total":2,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Authority Eternal","total":1,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Divide and Conquer","total":1,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false}]},{"mechanic":"Legitimate Force","total":1,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Radical Shift","total":1,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false}]},{"mechanic":"Weighty Blow","total":1,"perPull":[{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":0,"endedPull":false},{"count":1,"endedPull":false},{"count":0,"endedPull":false}]}],"cards":[{"person":"Gridiah Nailo","job":"WAR","me":false,"trend":{"points":[{"n":1,"level":0.847,"usual":null,"band":"new","earlier":0},{"n":2,"level":1.118,"usual":null,"band":"new","earlier":1},{"n":3,"level":0.942,"usual":null,"band":"new","earlier":2},{"n":4,"level":1.025,"usual":0.942,"band":"above","earlier":3},{"n":6,"level":1.002,"usual":0.984,"band":"usual","earlier":4},{"n":7,"level":0.893,"usual":1.002,"band":"below","earlier":5},{"n":8,"level":0.984,"usual":0.972,"band":"usual","earlier":6},{"n":9,"level":1.078,"usual":0.984,"band":"above","earlier":7},{"n":10,"level":1.071,"usual":0.993,"band":"usual","earlier":8},{"n":11,"level":0.998,"usual":1.002,"band":"usual","earlier":9},{"n":12,"level":1.081,"usual":1,"band":"above","earlier":10},{"n":13,"level":0.912,"usual":1.002,"band":"below","earlier":11},{"n":14,"level":1.038,"usual":1,"band":"usual","earlier":12},{"n":15,"level":0.88,"usual":1.002,"band":"below","earlier":13}],"newBests":[],"best":1.118,"judged":11,"above":3,"below":3,"headline":"holding-steady","priorPulls":0,"priorNights":0}},{"person":"K'lyra Androyd","job":"WAR","me":true,"trend":{"points":[{"n":1,"level":0.905,"usual":null,"band":"new","earlier":0},{"n":2,"level":1.05,"usual":null,"band":"new","earlier":1},{"n":3,"level":1.008,"usual":null,"band":"new","earlier":2},{"n":4,"level":1.028,"usual":1.008,"band":"usual","earlier":3},{"n":6,"level":0.983,"usual":1.018,"band":"usual","earlier":4},{"n":7,"level":0.924,"usual":1.008,"band":"below","earlier":5},{"n":8,"level":1.011,"usual":0.995,"band":"usual","earlier":6},{"n":9,"level":0.937,"usual":1.008,"band":"usual","earlier":7},{"n":10,"level":0.992,"usual":0.995,"band":"usual","earlier":8},{"n":11,"level":1.076,"usual":0.992,"band":"best","earlier":9},{"n":12,"level":1.093,"usual":1,"band":"best","earlier":10},{"n":13,"level":0.888,"usual":1.008,"band":"below","earlier":11},{"n":14,"level":0.959,"usual":1,"band":"usual","earlier":12},{"n":15,"level":1.026,"usual":0.992,"band":"usual","earlier":13}],"newBests":[11,12],"best":1.093,"judged":11,"above":2,"below":2,"headline":"holding-steady","priorPulls":0,"priorNights":0}},{"person":"Eveso Windsor","job":"AST","me":false,"trend":{"points":[{"n":1,"level":0.856,"usual":null,"band":"new","earlier":0},{"n":2,"level":1.048,"usual":null,"band":"new","earlier":1},{"n":3,"level":1.029,"usual":null,"band":"new","earlier":2},{"n":4,"level":0.871,"usual":1.029,"band":"below","earlier":3},{"n":6,"level":0.989,"usual":0.95,"band":"usual","earlier":4},{"n":7,"level":0.786,"usual":0.989,"band":"below","earlier":5},{"n":8,"level":0.99,"usual":0.93,"band":"usual","earlier":6},{"n":9,"level":0.997,"usual":0.989,"band":"usual","earlier":7},{"n":10,"level":1.003,"usual":0.989,"band":"usual","earlier":8},{"n":11,"level":1.092,"usual":0.99,"band":"best","earlier":9},{"n":12,"level":1.116,"usual":0.993,"band":"best","earlier":10},{"n":13,"level":1.008,"usual":0.997,"band":"usual","earlier":11},{"n":14,"level":0.916,"usual":1,"band":"below","earlier":12},{"n":15,"level":1.091,"usual":0.997,"band":"above","earlier":13}],"newBests":[11,12],"best":1.116,"judged":11,"above":3,"below":3,"headline":"holding-steady","priorPulls":0,"priorNights":0}},{"person":"F'reyja Njoror","job":"RPR","me":false,"trend":{"points":[{"n":12,"level":1.058,"usual":null,"band":"new","earlier":0},{"n":13,"level":0.953,"usual":null,"band":"new","earlier":1},{"n":14,"level":0.933,"usual":null,"band":"new","earlier":2},{"n":15,"level":1.047,"usual":0.953,"band":"above","earlier":3}],"newBests":[],"best":1.058,"judged":1,"above":1,"below":0,"headline":"holding-steady","priorPulls":0,"priorNights":0}},{"person":"Tom Bruise","job":"NIN","me":false,"trend":{"points":[{"n":1,"level":0.9,"usual":null,"band":"new","earlier":0},{"n":2,"level":1.048,"usual":null,"band":"new","earlier":1},{"n":3,"level":1.005,"usual":null,"band":"new","earlier":2},{"n":4,"level":0.995,"usual":1.005,"band":"usual","earlier":3},{"n":6,"level":0.965,"usual":1,"band":"usual","earlier":4},{"n":7,"level":0.99,"usual":0.995,"band":"usual","earlier":5},{"n":8,"level":0.827,"usual":0.993,"band":"below","earlier":6},{"n":9,"level":1.095,"usual":0.99,"band":"best","earlier":7},{"n":10,"level":1.103,"usual":0.993,"band":"best","earlier":8},{"n":11,"level":0.965,"usual":0.995,"band":"usual","earlier":9},{"n":12,"level":1.094,"usual":0.993,"band":"above","earlier":10},{"n":13,"level":1.076,"usual":0.995,"band":"above","earlier":11},{"n":14,"level":1.039,"usual":1,"band":"usual","earlier":12},{"n":15,"level":0.952,"usual":1.005,"band":"usual","earlier":13}],"newBests":[9,10],"best":1.103,"judged":11,"above":4,"below":1,"headline":"trending-up","priorPulls":0,"priorNights":0}},{"person":"Reena Tsinghahla","job":"BLM","me":false,"trend":{"points":[{"n":1,"level":0.82,"usual":null,"band":"new","earlier":0},{"n":2,"level":0.998,"usual":null,"band":"new","earlier":1},{"n":3,"level":1.002,"usual":null,"band":"new","earlier":2},{"n":4,"level":0.789,"usual":0.998,"band":"below","earlier":3},{"n":6,"level":1.034,"usual":0.909,"band":"best","earlier":4},{"n":7,"level":1.043,"usual":0.998,"band":"best","earlier":5},{"n":8,"level":1.02,"usual":1,"band":"usual","earlier":6},{"n":9,"level":0.766,"usual":1.002,"band":"below","earlier":7},{"n":10,"level":1.003,"usual":1,"band":"usual","earlier":8},{"n":11,"level":1.007,"usual":1.002,"band":"usual","earlier":9},{"n":12,"level":1.125,"usual":1.003,"band":"best","earlier":10},{"n":13,"level":0.995,"usual":1.003,"band":"usual","earlier":11},{"n":14,"level":0.992,"usual":1.003,"band":"usual","earlier":12},{"n":15,"level":0.931,"usual":1.002,"band":"usual","earlier":13}],"newBests":[6,7,12],"best":1.125,"judged":11,"above":3,"below":2,"headline":"holding-steady","priorPulls":0,"priorNights":0}}]}]},"/api/raids/mounts/1017":{"dutyId":1017,"duty":"the Minstrel's Ballad: Sphene's Burden","kills":6,"mounts":[{"mountId":363,"itemId":44499,"name":"Wings of Eternity","kills":6,"drops":2,"slices":[{"kind":"none","count":4},{"kind":"static","who":"Eveso Windsor","count":1},{"kind":"others","count":1}],"members":[{"name":"K'lyra Androyd","me":true,"won":0,"firstWon":null,"had":false,"has":false},{"name":"Tom Bruise","me":false,"won":0,"firstWon":null,"had":false,"has":false},{"name":"Y'seri Xhula","me":false,"won":0,"firstWon":null,"had":false,"has":false},{"name":"F'reyja Njoror","me":false,"won":0,"firstWon":null,"had":false,"has":false},{"name":"Yemi Clayde","me":false,"won":0,"firstWon":null,"had":false,"has":false},{"name":"Reena Tsinghahla","me":false,"won":0,"firstWon":null,"had":true,"has":true},{"name":"Gridiah Nailo","me":false,"won":0,"firstWon":null,"had":false,"has":false},{"name":"Eveso Windsor","me":false,"won":1,"firstWon":"2026-11-22","had":false,"has":true}]}]}}};</script>
+<script>
+const $ = (s) => document.querySelector(s);
+const esc = (s) => String(s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]);
+const gil = (n) => Math.round(n).toLocaleString("en-US");
+const kdps = (n) => `≈${(n / 1000).toFixed(1)}k`;
+const pct = (x) => (x === null ? "—" : `${Math.round(x)}%`);
+const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.round(s) % 60).padStart(2, "0")}`;
+// A snapshot file (npm run raid -- snapshot) carries its data and has no server behind it.
+const SNAP = window.SNAPSHOT;
+async function getJson(url) {
+  if (SNAP) {
+    if (!(url in SNAP.api)) throw new Error("This snapshot doesn't include that view.");
+    return SNAP.api[url];
+  }
+  const res = await fetch(url);
+  const json = await res.json();
+  if (!res.ok) throw new Error(json.error ?? res.statusText);
+  return json;
+}
+
+// ---------------------------------------------------------------- tabs
+const FOOTERS = {
+  profit: "FINAL FANTASY XIV © SQUARE ENIX · data: XIVAPI, Universalis · prices are crowdsourced and can be a few hours old",
+  raids: "FINAL FANTASY XIV © SQUARE ENIX · data: your own saved chat log · all DPS are estimates",
+  rotation: "FINAL FANTASY XIV © SQUARE ENIX · data: your own saved chat log, XIVAPI · ideas from xivanalysis · you and opted-in members only",
+  collections: "FINAL FANTASY XIV © SQUARE ENIX · data: FFXIV Collect (ffxivcollect.com), non-commercial use · prices: Universalis",
+};
+const TABS = ["profit", "raids", "rotation", "collections"];
+const loaded = {};
+function showTab() {
+  const asked = location.hash.slice(1);
+  const tab = TABS.includes(asked) && document.querySelector(`nav a[data-tab="${asked}"]`) ? asked : SNAP ? "raids" : "profit";
+  for (const a of document.querySelectorAll("nav a")) {
+    if (a.dataset.tab === tab) a.setAttribute("aria-current", "page");
+    else a.removeAttribute("aria-current");
+  }
+  for (const t of TABS) $(`#tab-${t}`).hidden = tab !== t;
+  $("#footer").textContent = FOOTERS[tab];
+  const load = { profit: loadProfit, raids: loadRaids, rotation: loadRotation, collections: loadCollections }[tab];
+  if (!loaded[tab]) loaded[tab] = load().catch((err) => {
+    loaded[tab] = undefined;
+    const where = tab === "profit" ? $("#profit-meta") : $(`#tab-${tab}`);
+    where.innerHTML = `<p class="error">${esc(err.message)}</p>`;
+  });
+}
+addEventListener("hashchange", showTab);
+
+// Shared hover tooltip: any element with data-tip (already-escaped HTML).
+document.addEventListener("mousemove", (e) => {
+  const t = e.target.closest("[data-tip]"), tip = $("#tip");
+  if (!t) { tip.style.display = "none"; return; }
+  tip.innerHTML = t.dataset.tip;
+  tip.style.display = "block";
+  tip.style.left = Math.min(innerWidth - 330, e.clientX + 14) + "px";
+  tip.style.top = e.clientY + 14 + "px";
+});
+
+// ---------------------------------------------------------------- profit
+const CRAFTS = [["", "All"], ["CRP", "CRP"], ["BSM", "BSM"], ["ARM", "ARM"], ["GSM", "GSM"], ["LTW", "LTW"], ["WVR", "WVR"], ["ALC", "ALC"], ["CUL", "CUL"]];
+const JOB_ABBR = { Woodworking: "CRP", Smithing: "BSM", Armorcraft: "ARM", Goldsmithing: "GSM", Leatherworking: "LTW", Clothcraft: "WVR", Alchemy: "ALC", Cooking: "CUL" };
+const REFRESH_MS = 5 * 60_000, STALE_MS = 15 * 60_000;
+// Remembered per browser only; the page works the same when storage is blocked.
+const saved = {
+  get(key, fallback) { try { return JSON.parse(localStorage.getItem(key)) ?? fallback; } catch { return fallback; } },
+  set(key, value) { try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* private window */ } },
+};
+const P = {
+  controls: saved.get("profit-controls", { job: "", minVelocity: "2", top: "25" }),
+  sort: saved.get("profit-sort", { key: "profit", dir: -1 }),
+  json: null, open: new Set(), timer: null,
+};
+
+function profitControls() {
+  $("#job-chips").innerHTML = CRAFTS.map(([v, label]) => `<button data-job="${v}" aria-pressed="${P.controls.job === v}">${label}</button>`).join("");
+  $("#min-velocity").value = P.controls.minVelocity;
+  $("#top").value = P.controls.top;
+}
+function setControl(key, value) {
+  P.controls[key] = value;
+  saved.set("profit-controls", P.controls);
+  profitControls();
+  loadProfit();
+}
+$("#job-chips").addEventListener("click", (e) => { const b = e.target.closest("[data-job]"); if (b) setControl("job", b.dataset.job); });
+let typing;
+$("#min-velocity").addEventListener("input", (e) => { clearTimeout(typing); typing = setTimeout(() => setControl("minVelocity", e.target.value || "0"), 400); });
+$("#top").addEventListener("change", (e) => setControl("top", e.target.value));
+$("#refresh").addEventListener("click", () => loadProfit());
+$("#profit-table thead").addEventListener("click", (e) => {
+  const th = e.target.closest("[data-sort]");
+  if (!th) return;
+  const before = rankedBy();
+  P.sort = { key: th.dataset.sort, dir: P.sort.key === th.dataset.sort ? -P.sort.dir : th.classList.contains("n") ? -1 : 1 };
+  saved.set("profit-sort", P.sort);
+  if (rankedBy() !== before) loadProfit(); // the top rows by gil/hr or gil/day aren't the top rows by profit
+  else renderProfit();
+});
+$("#profit-rows").addEventListener("click", (e) => {
+  const tr = e.target.closest("tr[data-item]");
+  if (!tr) return;
+  const id = Number(tr.dataset.item);
+  if (P.open.has(id)) P.open.delete(id); else P.open.add(id);
+  renderProfit();
+});
+
+/** Every 5 minutes, refetch if the Profit tab is on screen; otherwise check again later. */
+function scheduleRefresh() {
+  clearTimeout(P.timer);
+  P.timer = setTimeout(() => (!document.hidden && !$("#tab-profit").hidden ? loadProfit() : scheduleRefresh()), REFRESH_MS);
+}
+
+/** What the server picks the top rows by: gil/hr or gil/day when sorted highest first by one, else profit. */
+function rankedBy() {
+  return (P.sort.key === "hourly" || P.sort.key === "daily") && P.sort.dir < 0 ? P.sort.key : "profit";
+}
+
+async function loadProfit() {
+  const meta = $("#profit-meta");
+  $("#refresh").disabled = true;
+  const q = new URLSearchParams(location.search);
+  if (P.controls.job) q.set("job", P.controls.job); else q.delete("job");
+  q.set("minVelocity", P.controls.minVelocity);
+  q.set("top", P.controls.top);
+  q.set("sort", rankedBy());
+  try {
+    const res = await fetch("/api/profit?" + q);
+    const json = await res.json();
+    if (!res.ok) { meta.className = "error"; meta.textContent = json.error; return; }
+    meta.className = "muted";
+    P.json = json;
+    renderProfit();
+  } catch (err) {
+    meta.className = "error";
+    meta.textContent = `Couldn't reach the dashboard server: ${err.message}`;
+  } finally {
+    $("#refresh").disabled = false;
+    scheduleRefresh();
+  }
+}
+
+function updatedLabel() {
+  if (!P.json) return;
+  const at = new Date(P.json.pricesAt);
+  const stale = Date.now() - at.getTime() > STALE_MS;
+  $("#profit-updated").innerHTML = `Updated ${at.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+    + (stale ? ' <span class="tag stale" data-tip="These prices are more than 15 minutes old">stale</span>' : "");
+}
+setInterval(updatedLabel, 60_000);
+
+function renderProfit() {
+  const json = P.json;
+  if (!json) return;
+  const { key, dir } = P.sort;
+  const val = (r) => (key === "margin" ? r.margin ?? Infinity : key === "nqSellUnitPrice" ? r.nqSellUnitPrice ?? -1 : r[key]);
+  const rows = P.sorted = [...json.rows].sort((a, b) => {
+    const x = val(a), y = val(b);
+    return (typeof x === "string" ? x.localeCompare(y) : x - y) * dir;
+  });
+  const from = json.buyMarket && json.buyMarket.toLowerCase() !== json.market.toLowerCase() ? `the cheapest ${json.buyMarket} world` : "the cheapest listing";
+  const ranked = { profit: "Most profitable crafts", hourly: "Best gil per hour", daily: "Best gil per day" }[rankedBy()];
+  $("#profit-meta").textContent = `${ranked} ·${json.tax?.label ?? "after 5% tax"} · ingredients from ${from}`
+    + (rows.length ? "" : " · nothing profitable with these filters");
+  updatedLabel();
+  for (const th of document.querySelectorAll("#profit-table th[data-sort]")) {
+    th.setAttribute("aria-sort", th.dataset.sort === key ? (dir > 0 ? "ascending" : "descending") : "none");
+  }
+  $("#profit-rows").innerHTML = rows.map((r) => {
+    const open = P.open.has(r.itemId);
+    const main = `<tr data-item="${r.itemId}" class="pick${open ? " on" : ""}">
+      <td><span class="caret">${open ? "▾" : "▸"}</span>${esc(r.item)}${r.missing.length ? ` <span class="tag" data-tip="Couldn't price: ${esc(r.missing.join(", "))}">${r.missing.length} unpriced</span>` : ""}</td>
+      <td>${JOB_ABBR[r.job] ?? esc(r.job)}</td><td class="n">${r.yield}</td>
+      <td class="n">${gil(r.sellUnitPrice)} <span class="muted">${r.sellGrade}</span></td>
+      <td class="n">${r.nqSellUnitPrice == null ? '<span class="muted">—</span>' : gil(r.nqSellUnitPrice)}</td>
+      <td class="n">${gil(r.cost)}</td><td class="n">${gil(r.profit)}</td>
+      <td class="n">${r.margin === null ? "n/a" : Math.round(r.margin * 100) + "%"}</td>
+      <td class="n">${r.dailyVelocity.toFixed(1)}</td>
+      <td class="n">${r.hourly == null ? "—" : gil(r.hourly)}</td><td class="n">${r.daily == null ? "—" : gil(r.daily)}</td></tr>`;
+    if (!open) return main;
+    // Everything bought, one stop per world, most gil first: a world-visit route.
+    // Crafted intermediates come after, each with what goes into it.
+    const stops = new Map();
+    const crafted = [];
+    const walk = (ls) => {
+      for (const l of ls) {
+        if (l.craft) { crafted.push(l); walk(l.craft.steps); continue; }
+        const where = l.world ?? (l.basis === "last sale" ? "No listing (last sale price)" : "Unpriced");
+        const stop = stops.get(where) ?? new Map();
+        const had = stop.get(l.name);
+        stop.set(l.name, had ? { ...had, amount: had.amount + l.amount } : l);
+        stops.set(where, stop);
+      }
+    };
+    walk(r.shopping);
+    const spend = (ls) => ls.reduce((s, l) => s + (l.unitPrice ?? 0) * l.amount, 0);
+    const lines = [...stops].map(([where, m]) => [where, [...m.values()]]).sort((a, b) => spend(b[1]) - spend(a[1])).map(([where, ls]) =>
+      `<tr class="stop"><td colspan="2">${esc(where)}</td><td class="n">${gil(spend(ls))}</td></tr>`
+      + ls.map((l) => `<tr><td>${l.amount} × ${esc(l.name)}${l.basis === "HQ" ? ' <span class="muted">HQ</span>' : ""}</td>
+        <td class="n">${l.unitPrice === null ? "—" : gil(l.unitPrice) + " each"}</td>
+        <td class="n">${l.unitPrice === null ? "" : gil(l.unitPrice * l.amount)}</td></tr>`).join("")).join("")
+      + (crafted.length ? `<tr class="stop"><td colspan="2">Craft</td><td class="n">saves</td></tr>` : "")
+      + crafted.map((l) => `<tr><td>${l.amount} × ${esc(l.name)} <span class="muted">${l.craft.crafts} × ${JOB_ABBR[l.craft.job] ?? esc(l.craft.job)}, from ${esc(l.craft.steps.map((s) => `${s.amount} ${s.name}`).join(", "))}</span></td>
+        <td class="n">${gil(l.unitPrice)} each</td>
+        <td class="n">${l.craft.saves === null ? '<span class="muted">none listed</span>' : gil(l.craft.saves)}</td></tr>`).join("");
+    return `${main}<tr class="detail"><td colspan="11"><table class="shopping"><thead><tr><th>Shopping route</th><th class="n">price</th><th class="n">total</th></tr></thead><tbody>${lines}</tbody></table></td></tr>`;
+  }).join("");
+}
+profitControls();
+
+// "Copy for Discord": the table as you see it (filters and sort), as one Discord message.
+$("#copy-discord").addEventListener("click", async () => {
+  const btn = $("#copy-discord");
+  if (!P.json || !P.sorted?.length) return;
+  try {
+    const { formatDiscordTable } = await import("/lib/discord-table.js");
+    const at = new Date(P.json.pricesAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    const from = P.json.buyMarket && P.json.buyMarket !== P.json.market ? ` · mats from the cheapest ${P.json.buyMarket} world` : "";
+    const text = formatDiscordTable({
+      title: `Top crafts on ${P.json.market}${from} · prices ${at}`,
+      columns: [
+        { header: "Item", maxWidth: 30 }, { header: "Job" }, { header: "Sell", align: "right" },
+        { header: "Cost", align: "right" }, { header: "Profit", align: "right" }, { header: "/day", align: "right" },
+      ],
+      rows: P.sorted.map((r) => [r.item, JOB_ABBR[r.job] ?? r.job, `${gil(r.sellUnitPrice)} ${r.sellGrade}`, gil(r.cost), gil(r.profit), r.dailyVelocity.toFixed(1)]),
+    });
+    await navigator.clipboard.writeText(text);
+    btn.textContent = "Copied ✓";
+  } catch (err) {
+    btn.textContent = "Couldn't copy";
+    btn.dataset.tip = esc(err.message);
+  }
+  setTimeout(() => { btn.textContent = "Copy for Discord"; delete btn.dataset.tip; }, 2000);
+});
+
+// ---------------------------------------------------------------- raids
+const R = { nights: [], people: [], pick: null, night: null, mounts: {} };
+const OUTCOME = { kill: ["kill", "✓ kill"], wipe: ["wipe", "✕ wipe"], reset: ["other", "↺ reset"], truncated: ["other", "… cut off"], unknown: ["other", "? unknown"] };
+const status = (o) => `<span class="st ${OUTCOME[o][0]}"><i></i>${OUTCOME[o][1]}</span>`;
+const mark = (o) => ({ kill: "✓", wipe: "✕", reset: "↺" })[o] ?? "…";
+const shade = (v, max) => (v ? `var(--seq-${Math.min(5, 1 + Math.floor((4 * v) / max))})` : "var(--seq-0)");
+const ink = (v, max) => (v / max > 0.6 ? "#fff" : "var(--text-primary)");
+const weekOf = (date) => { const d = new Date(date + "T12:00:00"); d.setDate(d.getDate() - ((d.getDay() + 6) % 7)); return d; };
+const dayLabel = (date) => new Date(date + "T12:00:00").toLocaleDateString([], { weekday: "short", month: "short", day: "numeric" });
+
+async function loadRaids() {
+  [R.nights, R.people] = await Promise.all([getJson("/api/raids/nights"), getJson("/api/raids/people")]);
+  if (!R.nights.length) {
+    $("#tab-raids").innerHTML = `<div class="card"><h2>No raid nights yet</h2><p class="sec">Capture runs hourly once it's installed (<code>npm run raid -- schedule install</code>), or run <code>npm run raid -- capture</code> after raiding. Restart the dashboard to import.</p></div>`;
+    return;
+  }
+  const keep = R.pick && R.nights.find((n) => n.night === R.pick.night && n.dutyId === R.pick.dutyId);
+  await pickNight(keep ?? R.nights[0]);
+}
+
+async function pickNight(row) {
+  R.pick = row;
+  if (R.night?.night !== row.night) R.night = await getJson(`/api/raids/night/${encodeURIComponent(row.night)}`);
+  if (!R.mounts[row.dutyId]) R.mounts[row.dutyId] = await getJson(`/api/raids/mounts/${row.dutyId}`);
+  renderRaids();
+}
+
+function nightsTable() {
+  let week = "";
+  const body = R.nights.map((n, i) => {
+    const w = weekOf(n.date).toDateString();
+    const sameWeek = R.nights.filter((m) => weekOf(m.date).toDateString() === w);
+    const head = w === week ? "" : `<tr class="week"><td colspan="8">Week of ${weekOf(n.date).toLocaleDateString([], { month: "short", day: "numeric" })} · ${sameWeek.reduce((s, m) => s + m.pulls, 0)} pulls, ${sameWeek.reduce((s, m) => s + m.kills, 0)} kills</td></tr>`;
+    week = w;
+    const on = R.pick && n.night === R.pick.night && n.dutyId === R.pick.dutyId;
+    return `${head}<tr class="pick${on ? " on" : ""}" data-i="${i}"><td>${dayLabel(n.date)}</td><td>${esc(n.duty)}</td>
+      <td class="n">${n.pulls}</td><td class="n">${n.kills}</td><td class="n">${Math.round(n.killRate * 100)}%</td>
+      <td class="n">${pct(n.best)}</td><td class="n">${pct(n.median)}</td><td class="sec">${esc(n.topEndedBy ?? "—")}</td></tr>`;
+  }).join("");
+  return `<div class="card"><h2>Nights <span class="muted">· click one to load it below</span></h2><div class="scroll"><table>
+    <thead><tr><th>night</th><th>duty</th><th class="n">pulls</th><th class="n">kills</th><th class="n">kill rate</th>
+    <th class="n" data-tip="How far the best pull got">best</th><th class="n">median</th><th>top wipe cause</th></tr></thead>
+    <tbody id="nights">${body}</tbody></table></div>
+    <p class="muted" style="margin:6px 0 0">Progress is how far into the fight script a pull got; — until the duty has a kill to measure against.</p></div>`;
+}
+
+function progressCell(p) {
+  if (p.progress === null) return `<span class="muted" data-tip="No kill yet to measure progress against">—</span>${p.furthestYet ? '<span class="tag">furthest yet</span>' : ""}`;
+  const text = p.outcome === "kill" ? "100%" : `${Math.round(p.progress)}% · ${esc(p.lastMechanic ?? "")}`;
+  return `<span class="pbar"><b style="width:${p.progress}%"></b></span>${text}`;
+}
+
+function partyDpsCell(p) {
+  if (p.outcome !== "kill" || !p.partyDps) return "—";
+  if (!p.echo) return kdps(p.partyDps);
+  return `<span data-tip="${kdps(p.partyDps)} with Echo ${p.echo}%; shown without it">${kdps(p.partyDpsWithoutEcho)} *</span>`;
+}
+
+function pullTable(d) {
+  return `<div class="card"><h2>${dayLabel(R.night.date)} · ${esc(d.duty)}: pulls</h2><div class="scroll"><table>
+    <thead><tr><th>#</th><th>result</th><th>progress</th><th class="n">time</th><th class="n" data-tip="Kills only, with the Echo's bonus taken out: the boss's HP is fixed, so this compares how fast each kill was. * had the Echo; hover for the number as logged">party ≈DPS</th><th class="n">deaths</th><th>first death</th><th>ended by</th></tr></thead><tbody>
+    ${d.pulls.map((p) => `<tr><td>${p.n}</td><td>${status(p.outcome)}</td><td>${progressCell(p)}</td><td class="n">${mmss(p.seconds)}</td>
+      <td class="n">${partyDpsCell(p)}</td><td class="n">${p.deaths}</td>
+      <td class="sec">${esc(p.firstDeath ?? "")}</td><td class="sec">${esc(p.endedBy ?? "")}</td></tr>`).join("")}</tbody></table></div></div>`;
+}
+
+const gridHead = (d) => `<tr><th></th>${d.pulls.map((p) => `<th data-tip="Pull ${p.n}: ${esc(OUTCOME[p.outcome][1])}${p.progress !== null && p.outcome !== "kill" ? `, ${Math.round(p.progress)}%` : ""}">${p.n}<br>${mark(p.outcome)}</th>`).join("")}</tr>`;
+
+function deathGrid(d) {
+  if (!d.deaths.length) return `<div class="card"><h2>Deaths by mechanic × pull</h2><p class="muted">No deaths this night.</p></div>`;
+  const max = Math.max(1, ...d.deaths.flatMap((m) => m.perPull.map((c) => c.count)));
+  const rows = d.deaths.map((m) => `<tr><td>${esc(m.mechanic)} <span class="muted">${m.total}</span></td>${m.perPull.map((c, i) =>
+    `<td><div class="cell" style="background:${shade(c.count, max)};color:${ink(c.count, max)}" data-tip="Pull ${i + 1} · ${esc(m.mechanic)}<br>${c.count} death${c.count === 1 ? "" : "s"}${c.endedPull ? " · ended the pull" : ""}">${c.count || ""}${c.endedPull ? "▲" : ""}</div></td>`).join("")}</tr>`).join("");
+  return `<div class="card"><h2>Deaths by mechanic × pull <span class="muted">· ▲ ended the pull · counts only, never who</span></h2><div class="scroll"><table class="grid">${gridHead(d)}${rows}</table></div></div>`;
+}
+
+function addButton(person) {
+  if (SNAP) return "";
+  const p = R.people.find((x) => x.person === person);
+  const badge = p?.suggest ? `<span class="badge" data-tip="Raided with you on ${p.nights} nights">${p.nights} nights</span>` : "";
+  return `${badge}<button class="add" data-add="${esc(person)}">Add to Static</button>`;
+}
+
+function dpsGrid(d, toggle) {
+  const max = Math.max(1, ...d.dps.flatMap((e) => e.perPull.filter((x) => x !== null)));
+  const rows = d.dps.map((e) => `<tr><td>${esc(e.person)} · ${esc(e.job)}${e.static || e.me ? "" : '<span class="tag">fill-in</span>'}
+      <span class="muted">${kdps(e.average)}</span>${e.static || e.me ? "" : addButton(e.person)}</td>
+    ${e.perPull.map((x, i) => `<td><div class="cell" style="min-width:34px;background:${x === null ? "var(--surface-2)" : shade(x, max)};color:${x === null ? "var(--text-muted)" : ink(x, max)}"
+      data-tip="${esc(e.person)} (${esc(e.job)}), pull ${i + 1}<br>${x === null ? "not in this pull" : kdps(x) + " DPS"}">${x === null ? "·" : Math.round(x / 1000)}</div></td>`).join("")}</tr>`).join("");
+  return `<div class="card"><div class="fhead"><h2>≈DPS by person × pull <span class="muted">· thousands · damage over the whole pull, so a death drags it down</span></h2><span class="spacer"></span>${toggle}</div>
+    <div class="scroll"><table class="grid">${gridHead(d)}${rows}</table></div></div>`;
+}
+
+// ≈DPS cards (ticket 24): each Static member against their own usual, never against each other.
+// The numbers grid is one checkbox away; a snapshot file has no grid data, so no checkbox either.
+const BAND_WORDS = { best: "a new personal best", above: "above their usual", usual: "about their usual", below: "below their usual", new: "not enough earlier pulls to compare yet" };
+const HEADLINE = { "getting-started": ["soft", "Getting started"], "trending-up": ["up", "Trending up"], "holding-steady": ["flat", "Holding steady"], "tougher-night": ["down", "A tougher night"] };
+const BEST = "#38d0f0";
+const plural = (n, word) => `${n} ${word}${n === 1 ? "" : "s"}`;
+const dot = (band) => `<svg width="10" height="10" class="key"><circle cx="5" cy="5" r="4" class="d-${band}"/></svg>`;
+const dash = (stroke, pattern, opacity = 1) => `<svg width="18" height="10" class="key"><line x1="0" x2="18" y1="5" y2="5" stroke="${stroke}" stroke-opacity="${opacity}" stroke-width="1.5" stroke-dasharray="${pattern}"/></svg>`;
+
+// Their pulls over time, with no axis or numbers: earlier nights grey, tonight shaded, dashed = their usual.
+function trendLine(t, w = 226, h = 46) {
+  const s = t.points;
+  if (s.length < 2) return "";
+  const v = s.flatMap((p) => (p.usual === null ? [p.level] : [p.level, p.usual])), lo = Math.min(...v) * 0.97, hi = Math.max(...v) * 1.03;
+  const X = (i) => 4 + (i * (w - 8)) / (s.length - 1), Y = (y) => h - 4 - ((y - lo) / (hi - lo || 1)) * (h - 8);
+  const line = (from, to, stroke) => `<polyline points="${s.slice(from, to).map((p, i) => `${X(from + i)},${Y(p.level)}`).join(" ")}" fill="none" stroke="${stroke}" stroke-width="1.2"/>`;
+  const first = s.findIndex((p) => p.n !== null);
+  const usual = s.flatMap((p, i) => (p.usual === null ? [] : [`${X(i)},${Y(p.usual)}`])).join(" ");
+  return `<svg width="${w}" height="${h}" aria-hidden="true">
+    ${first > 0 ? `<rect x="${X(first) - 3}" y="0" width="${w - X(first) + 3}" height="${h}" fill="var(--surface-1)" rx="4"/>${line(0, first + 1, "var(--text-muted)")}` : ""}
+    ${first >= 0 ? line(first, s.length, "var(--text-secondary)") : line(0, s.length, "var(--text-muted)")}
+    ${t.newBests.length ? "" : `<line x1="2" x2="${w - 2}" y1="${Y(t.best)}" y2="${Y(t.best)}" stroke="${BEST}" stroke-width="1.5" stroke-dasharray="2 3" data-tip="Their personal best so far"/>`}
+    ${usual ? `<polyline points="${usual}" fill="none" stroke="var(--text-primary)" stroke-opacity=".55" stroke-width="1.5" stroke-dasharray="4 3"/>` : ""}
+    ${s.map((p, i) => (p.n === null ? "" : `<circle cx="${X(i)}" cy="${Y(p.level)}" r="${p.band === "best" ? 4.5 : 3.5}" class="d-${p.band}"
+      data-tip="Pull ${p.n}: ${BAND_WORDS[p.band]}${p.band === "new" ? "" : `<br>against their ${p.earlier} earlier pulls`}"/>`)).join("")}</svg>`;
+}
+
+function dpsCards(d, toggle) {
+  const cards = d.cards.map(({ person, job, trend: t }) => {
+    const [tone, headline] = HEADLINE[t.headline];
+    const notes = [
+      t.newBests.length ? `${dot("best")}new personal best on pull ${t.newBests.join(", ")}` : "",
+      t.judged ? `${t.above} of ${plural(t.judged, "pull")} above their usual` : "",
+    ].filter(Boolean).join(" · ");
+    const vs = t.priorPulls ? `${plural(t.priorPulls, "earlier pull")} over ${plural(t.priorNights, "night")}` : "earlier pulls tonight only";
+    return `<div class="pcard"><div class="who">${esc(person)} · ${esc(job)}</div><div class="head ${tone}">${headline}</div>
+      ${trendLine(t)}<div class="foot">${notes ? notes + "<br>" : ""}Compared with ${vs}</div></div>`;
+  }).join("");
+  const legend = ["best", "above", "usual", "below", "new"].map((b) => `<span>${dot(b)}${BAND_WORDS[b]}</span>`).join("")
+    + `<span>${dash("var(--text-primary)", "4 3", 0.55)}their usual</span><span>${dash(BEST, "2 3")}their personal best, when not beaten tonight</span>`;
+  return `<div class="card"><div class="fhead"><h2>How everyone's doing</h2><span class="spacer"></span>${toggle}</div>
+    ${cards ? `<div class="cards">${cards}</div><div class="legend">${legend}</div>` : `<p class="muted">No Static members played this duty tonight.</p>`}</div>`;
+}
+
+function dpsSection(d) {
+  const numbers = Boolean(d.dps?.length); // a snapshot file carries no grid data
+  if (!numbers && !d.cards.length) return "";
+  const showing = numbers && saved.get("dps-numbers", false);
+  const toggle = numbers ? `<label data-tip="The raw ≈DPS grid: everyone, with numbers, highest average first"><input type="checkbox" id="show-numbers"${showing ? " checked" : ""}> Show numbers</label>` : "";
+  return showing ? dpsGrid(d, toggle) : dpsCards(d, toggle);
+}
+
+// Mount drops (dashboard ticket 04): every kill split by who won the mount. A Static member's
+// colour follows their place on the Roster, never their slice's rank, so it doesn't move between duties.
+const SERIES = ["#3987e5", "#d95926", "#199e70", "#c98500", "#d55181", "#0ca30c", "#9085e9", "#e66767"];
+const sliceColour = (s, m) => s.kind === "none" ? "#3d3d39" : s.kind === "others" ? "var(--neutral)"
+  : SERIES[m.members.findIndex((x) => x.name === s.who) % SERIES.length] ?? "var(--neutral)";
+const sliceName = (s) => s.kind === "none" ? "No mount" : s.kind === "others" ? "Fill-ins or nobody" : s.who;
+const share = (n, of) => `${Math.round((100 * n) / of)}%`;
+
+function mountPie(m) {
+  const r = 64, c = 70;
+  let at = -Math.PI / 2;
+  const marks = m.slices.map((s) => {
+    const tip = `data-tip="${esc(sliceName(s))}<br>${s.count} of ${m.kills} kills · ${share(s.count, m.kills)}"`;
+    const fill = `fill="${sliceColour(s, m)}"`;
+    if (s.count === m.kills) return `<circle cx="${c}" cy="${c}" r="${r}" ${fill} ${tip}/>`;
+    const end = at + (2 * Math.PI * s.count) / m.kills;
+    const p = (t) => `${(c + r * Math.cos(t)).toFixed(2)} ${(c + r * Math.sin(t)).toFixed(2)}`;
+    const d = `M${c} ${c} L${p(at)} A${r} ${r} 0 ${end - at > Math.PI ? 1 : 0} 1 ${p(end)} Z`;
+    at = end;
+    return `<path d="${d}" ${fill} ${tip}/>`;
+  }).join("");
+  return `<svg class="pie" viewBox="0 0 140 140" width="140" height="140" role="img" aria-label="${esc(m.name)}: dropped ${m.drops} of ${m.kills} kills">${marks}</svg>`;
+}
+
+function mountStatus(p) {
+  if (p.won) return `✓ won it here${p.won > 1 ? ` ×${p.won}` : `, ${dayLabel(p.firstWon)}`}`;
+  if (p.had) return "✓ already had it";
+  return '<span class="sec">✗ still needs it</span>';
+}
+
+function mountButton(m, p) {
+  if (SNAP || p.won) return "";
+  return p.had
+    ? `<button data-had="${esc(p.name)}" data-mount="${m.mountId}" data-on="false">Undo</button>`
+    : `<button data-had="${esc(p.name)}" data-mount="${m.mountId}" data-on="true" data-tip="They already have it from before, or got it where the log didn't see">Mark as already had</button>`;
+}
+
+function mountSection(m) {
+  const needs = m.members.filter((p) => !p.has).length;
+  const legend = m.slices.map((s) => `<li><span><i style="background:${sliceColour(s, m)}"></i>${esc(sliceName(s))}</span><span class="n">${s.count}</span><span class="muted">${share(s.count, m.kills)}</span></li>`).join("");
+  const members = m.members.length
+    ? `<table class="mount-who"><tbody>${m.members.map((p) => `<tr><td>${esc(p.name)}</td><td>${mountStatus(p)}</td><td>${mountButton(m, p)}</td></tr>`).join("")}</tbody></table>`
+    : '<p class="muted">No one is on the Static yet.</p>';
+  return `<h3>${esc(m.name)} <span class="muted">· dropped ${m.drops} of ${m.kills} kills (${share(m.drops, m.kills)}) · ${needs ? `${needs} on the Static still need it` : "the whole Static has it"}</span></h3>
+    <div class="mount">${mountPie(m)}<ul class="pie-legend">${legend}</ul><div class="scroll">${members}</div></div>`;
+}
+
+function mountCard(dutyId) {
+  const l = R.mounts[dutyId];
+  const head = `<h2>Mount drops · ${esc(l?.duty ?? "")} <span class="muted">· every kill, all nights</span></h2>`;
+  if (!l || !l.kills) return `<div class="card">${head}<p class="muted">No kills of this duty yet.</p></div>`;
+  if (!l.mounts.length) return `<div class="card">${head}<p class="muted">FFXIV Collect lists no mount from this duty.</p></div>`;
+  return `<div class="card">${head}${l.mounts.map(mountSection).join("")}</div>`;
+}
+
+function peopleTable() {
+  return `<div class="card"><h2>Who raided with you <span class="muted">· all nights</span></h2><div class="scroll"><table>
+    <thead><tr><th>person</th><th>world</th><th></th><th class="n">nights</th><th class="n">pulls</th><th>jobs</th><th></th></tr></thead><tbody>
+    ${R.people.map((p) => `<tr><td>${esc(p.person)}</td><td class="sec">${esc(p.world ?? "")}</td>
+      <td>${p.static || p.me ? '<span class="tag">Static</span>' : '<span class="tag">fill-in</span>'}</td>
+      <td class="n">${p.nights}</td><td class="n">${p.pulls}</td><td class="sec">${p.jobs.map(esc).join(", ")}</td>
+      <td>${p.static || p.me ? "" : addButton(p.person)}</td></tr>`).join("")}</tbody></table></div></div>`;
+}
+
+function renderRaids() {
+  const d = R.night.duties.find((x) => x.dutyId === R.pick.dutyId) ?? R.night.duties[0];
+  $("#tab-raids").innerHTML = nightsTable()
+    + R.night.warnings.map((w) => `<p class="warn">⚠ ${esc(w)}</p>`).join("")
+    + pullTable(d) + deathGrid(d) + dpsSection(d) + mountCard(d.dutyId) + peopleTable();
+}
+
+$("#tab-raids").addEventListener("change", (e) => {
+  if (e.target.id !== "show-numbers") return;
+  saved.set("dps-numbers", e.target.checked);
+  renderRaids();
+});
+
+$("#tab-raids").addEventListener("click", (e) => {
+  const row = e.target.closest("tr.pick");
+  if (row) return void pickNight(R.nights[Number(row.dataset.i)]).catch((err) => alert(err.message));
+  const add = e.target.closest("[data-add]");
+  if (add) openAdd(add.dataset.add);
+  const had = e.target.closest("[data-had]");
+  if (had) markHad(had).catch((err) => alert(err.message));
+});
+
+// "Mark as already had" / "Undo": saved to roster.json, then the mount card reloads.
+async function markHad(btn) {
+  btn.disabled = true;
+  try {
+    const body = { name: btn.dataset.had, mountId: Number(btn.dataset.mount), had: btn.dataset.on === "true" };
+    const res = await fetch("/api/raids/mount-had", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error((await res.json()).error);
+    const dutyId = R.pick.dutyId;
+    R.mounts[dutyId] = await getJson(`/api/raids/mounts/${dutyId}`);
+    renderRaids();
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// "Add to Static": confirm, POST, then reload so their history re-labels.
+let adding = null;
+function openAdd(person) {
+  adding = person;
+  $("#add-title").textContent = `Add ${person} to the Static?`;
+  $("#add-joined").value = "";
+  $("#add-error").textContent = "";
+  $("#add-dialog").showModal();
+}
+$("#add-form").addEventListener("submit", async (e) => {
+  if (e.submitter?.value !== "ok") return;
+  e.preventDefault();
+  $("#add-ok").disabled = true;
+  $("#add-error").textContent = "";
+  try {
+    const res = await fetch("/api/raids/roster", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ name: adding, joined: $("#add-joined").value || undefined }) });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json.error);
+    $("#add-dialog").close();
+    R.night = null;
+    R.mounts = {};
+    await loadRaids();
+  } catch (err) {
+    $("#add-error").textContent = err.message;
+  } finally {
+    $("#add-ok").disabled = false;
+  }
+});
+
+// ---------------------------------------------------------------- rotation
+// Every number comes from /api/rotation (src/lib/rotation/queries.ts); this only lays it out.
+const RO = { filters: null, q: null, view: null };
+const CONTENT_LABEL = {
+  dungeon: "Dungeon", "deep-dungeon": "Deep dungeon", "normal-raid": "Normal raid", "alliance-raid": "Alliance raid", trial: "Trial",
+  extreme: "Extreme", savage: "Savage", ultimate: "Ultimate", chaotic: "Chaotic", unreal: "Unreal", other: "Other", uncategorised: "Uncategorised",
+};
+const MARK = { "✓": ["good", "on target"], "!": ["close", "close"], "✕": ["work", "needs work"] };
+const markTag = (m) => `<span class="mk ${MARK[m][0]}">${m} ${MARK[m][1]}</span>`;
+const weekLabel = (w) => new Date(w + "T12:00:00Z").toLocaleDateString([], { month: "short", day: "numeric" });
+// Rounded down, so a shown number never crosses a target it missed (79.7% is "79%", ✕).
+const p1 = (x) => `${Math.floor(x)}%`;
+// Same parameter order as rotationUrl in src/lib/rotation/queries.ts, so snapshot answers are found by URL.
+function rotationUrl(q) {
+  const p = new URLSearchParams({ person: q.person, job: q.job, content: q.content ?? "all" });
+  if (q.levels?.length) p.set("levels", q.levels.join(","));
+  if (q.night) p.set("night", q.night);
+  return "/api/rotation?" + p;
+}
+
+async function loadRotation() {
+  RO.filters = await getJson("/api/rotation/filters");
+  if (!RO.filters.people.length) {
+    $("#tab-rotation").innerHTML = `<div class="card"><h2>No rotation feedback yet</h2><p class="sec">It's built from the same chat log as the Raids tab, for you and Roster members who opted in (<code>npm run raid -- roster opt-in "First Last"</code>).</p></div>`;
+    return;
+  }
+  const first = RO.filters.people.find((p) => p.me) ?? RO.filters.people[0];
+  RO.q = { person: first.person, job: first.jobs[0], content: "all" };
+  await fetchRotation();
+}
+async function fetchRotation() {
+  RO.view = await getJson(rotationUrl(RO.q));
+  renderRotation();
+}
+const personFilters = () => RO.filters.people.find((p) => p.person === RO.q.person);
+
+function rotationControls() {
+  const v = RO.view, pf = personFilters();
+  const opt = (value, label, on) => `<option value="${esc(value)}"${on ? " selected" : ""}>${esc(label)}</option>`;
+  const content = SNAP
+    ? `<span class="sec">All content</span>`
+    : `<label>Content <select id="ro-content">${opt("all", "All", v.content === "all")}${pf.contents.map((c) => opt(c, CONTENT_LABEL[c] ?? c, v.content === c)).join("")}</select></label>`;
+  const levels = SNAP
+    ? `<span class="sec">Level ${v.levels.join(", ")}</span>`
+    : `<span class="levels" role="group" aria-label="Sync level">Level ${pf.levels.map((l) => `<label><input type="checkbox" value="${l}"${v.levels.includes(l) ? " checked" : ""}>${l}</label>`).join("")}</span>`;
+  return `<div class="controls">
+    <label>Person <select id="ro-person">${RO.filters.people.map((p) => opt(p.person, p.me ? `${p.person} (you)` : p.person, p.person === v.person)).join("")}</select></label>
+    <label>Job <select id="ro-job">${pf.jobs.map((j) => opt(j, j, j === v.job)).join("")}</select></label>
+    ${content}${levels}
+    <label>Night <select id="ro-night"${v.nights.length ? "" : " disabled"}>${v.nights.map((n) => opt(n, dayLabel(n), n === v.night)).join("")}</select></label>
+  </div>`;
+}
+
+/** One point per raid week, on a fixed 0–100% scale, with the two target lines. */
+function weekChart(weeks, nightWeek) {
+  const W = 320, H = 96, L = 30, R = 8, T = 8, B = 18;
+  const x = (i) => (weeks.length === 1 ? (L + W - R) / 2 : L + (i * (W - L - R)) / (weeks.length - 1));
+  const y = (s) => T + ((100 - s) * (H - T - B)) / 100;
+  const guide = (s, label) => `<line x1="${L}" x2="${W - R}" y1="${y(s)}" y2="${y(s)}" class="guide"/><text x="${L - 4}" y="${y(s) + 3}" text-anchor="end">${label}</text>`;
+  const pts = weeks.map((w, i) => `${x(i)},${y(w.score)}`).join(" ");
+  const dots = weeks.map((w, i) => `<circle cx="${x(i)}" cy="${y(w.score)}" r="${w.week === nightWeek ? 5 : 4}" class="${w.week === nightWeek ? "on" : ""}"
+    data-tip="Week of ${esc(weekLabel(w.week))}: ${p1(w.score)}"/><circle cx="${x(i)}" cy="${y(w.score)}" r="12" class="hit" data-tip="Week of ${esc(weekLabel(w.week))}: ${p1(w.score)}"/>`).join("");
+  const ends = weeks.length > 1 ? `<text x="${x(0)}" y="${H - 4}" text-anchor="start">${esc(weekLabel(weeks[0].week))}</text><text x="${x(weeks.length - 1)}" y="${H - 4}" text-anchor="end">${esc(weekLabel(weeks[weeks.length - 1].week))}</text>` : "";
+  return `<svg class="weeks" viewBox="0 0 ${W} ${H}" role="img" aria-label="Overall score per raid week: ${weeks.map((w) => `${weekLabel(w.week)} ${p1(w.score)}`).join(", ")}">
+    ${guide(95, "95")}${guide(80, "80")}${guide(0, "0")}${weeks.length > 1 ? `<polyline points="${pts}" class="line"/>` : ""}${dots}${ends}</svg>`;
+}
+
+function versus(row) {
+  if (row.arrow === null) return '<span class="muted">—</span>';
+  return `<span class="arrow" data-tip="${esc(compareText())}: ${p1(row.previous)}">${row.arrow} <span class="muted">${p1(row.previous)}</span></span>`;
+}
+function compareText(lower = false) {
+  const c = RO.view.compareWeek;
+  const text = c.previous ? "Previous raid week" : `Week of ${weekLabel(c.week)} (the last one with matching nights)`;
+  return lower ? "the " + text[0].toLowerCase() + text.slice(1) : text;
+}
+function detail(c) {
+  if (c.unit === "seconds") return `<span data-tip="Seconds it wasn't sitting at full charges, of seconds fighting and alive">sat at full charges ${mmss(c.possible - c.done)} of ${mmss(c.possible)}</span>`;
+  const what = { uses: "uses", combos: "combos finished", windows: "windows" }[c.unit] ?? c.unit;
+  return `${c.done} / ${c.possible} ${what}`;
+}
+
+function renderRotation() {
+  const v = RO.view;
+  let body;
+  if (!v.night) body = `<div class="card"><p class="muted">No nights match these filters.</p></div>`;
+  else {
+    const thisWeek = [...v.weeks].reverse().find((w) => w.week <= v.night)?.week; // weeks are named by their Tuesday
+    const vs = v.compareWeek ? `vs ${compareText(true)}` : "no earlier week to compare with";
+    body = `<div class="card score">
+      <div><h2>Overall rotation · ${esc(dayLabel(v.night))}</h2>
+        ${v.score ? `<div class="big">${p1(v.score.percent)} ${markTag(v.score.mark)}</div>
+        <p class="sec" style="margin:4px 0 0">${v.score.arrow ? `${v.score.arrow} from ${p1(v.score.previous)} · ` : ""}${esc(vs)}</p>` : '<p class="muted">No checks apply to this job yet.</p>'}
+        <p class="muted" style="margin:6px 0 0">The average of the checks below. ✓ 95%+ · ! 80–94% · ✕ under 80%.</p></div>
+      <div><h2>Score per raid week <span class="muted">· resets Tuesday 08:00 UTC</span></h2>${weekChart(v.weeks, thisWeek)}</div>
+    </div>
+    <div class="card"><h2>Checks <span class="muted">· this night</span></h2><div class="scroll"><table>
+      <thead><tr><th>check</th><th class="n">%</th><th></th><th></th><th data-tip="${v.compareWeek ? esc(compareText()) : "No earlier week"}">vs week</th><th>what</th></tr></thead><tbody>
+      ${v.checks.map((c) => `<tr><td>${esc(c.label)}</td><td class="n">${p1(c.percent)}</td><td>${markTag(c.mark)}</td>
+        <td><span class="pbar"><b style="width:${Math.min(100, c.percent)}%"></b></span></td><td>${versus(c)}</td><td class="sec">${detail(c)}</td></tr>`).join("")}
+      </tbody></table></div></div>`;
+  }
+  $("#tab-rotation").innerHTML = rotationControls() + body;
+}
+
+$("#tab-rotation").addEventListener("change", (e) => {
+  const q = RO.q, pf = () => personFilters();
+  if (e.target.id === "ro-person") { q.person = e.target.value; q.job = pf().jobs[0]; q.content = "all"; delete q.levels; delete q.night; }
+  else if (e.target.id === "ro-job") { q.job = e.target.value; delete q.levels; delete q.night; }
+  else if (e.target.id === "ro-content") { q.content = e.target.value; delete q.levels; delete q.night; }
+  else if (e.target.id === "ro-night") { q.levels = RO.view.levels; q.night = e.target.value; }
+  else if (e.target.closest(".levels")) {
+    const picked = [...document.querySelectorAll(".levels input:checked")].map((i) => Number(i.value));
+    if (!picked.length) { e.target.checked = true; return; } // at least one level
+    q.levels = picked; delete q.night;
+  } else return;
+  fetchRotation().catch((err) => { $("#tab-rotation").insertAdjacentHTML("beforeend", `<p class="error">${esc(err.message)}</p>`); });
+});
+
+// ---------------------------------------------------------------- collections
+const COLLECTION_TOP = 10;
+const C = { json: null, view: saved.get("collection-view", "tiers"), kind: saved.get("collection-kind", ""), hidden: saved.get("collection-hidden", false), open: new Set() };
+
+async function loadCollections(refresh = false) {
+  C.json = await getJson("/api/collection" + (refresh ? "?refresh=1" : ""));
+  renderCollections();
+}
+
+function collectionRow(e) {
+  const how = e.price !== null
+    ? `<b>${gil(e.price)} gil</b>${e.world ? ` on ${esc(e.world)}` : ""}`
+    : e.source ? `${esc(e.source.type)}: ${esc(e.source.text)}` : "Unknown source";
+  return `<tr><td><img class="ci" src="${esc(e.icon)}" alt="" loading="lazy"> ${esc(e.name)}</td>
+    <td class="sec">${e.kind}</td><td class="how">${how}</td><td class="n">${e.ownedPercent}%</td><td class="n sec">${esc(e.patch)}</td></tr>`;
+}
+
+function renderCollections() {
+  const j = C.json;
+  const at = new Date(j.fetchedAt).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  const kinds = [["", "All"], ["mount", "Mounts"], ["minion", "Minions"]];
+  const views = [["tiers", "By tier"], ["runs", "Duty run list"]];
+  const controls = `<div class="controls">
+    <div class="chips" role="group" aria-label="View">${views.map(([v, l]) => `<button data-view="${v}" aria-pressed="${C.view === v}">${l}</button>`).join("")}</div>
+    <div class="chips" role="group" aria-label="Kind">${kinds.map(([v, l]) => `<button data-kind="${v}" aria-pressed="${C.kind === v}">${l}</button>`).join("")}</div>
+    ${C.view === "tiers" ? `<label><input type="checkbox" id="co-hidden" ${C.hidden ? "checked" : ""} style="width:auto"> Show Mog Station and seasonal events</label>` : ""}
+    <span class="spacer"></span>
+    <span class="muted">Checked FFXIV Collect at ${at}</span>
+    <button id="co-refresh" title="Ask FFXIV Collect again (it syncs from the Lodestone on its own schedule)">Refresh</button>
+  </div>`;
+  const prices = j.pricesError
+    ? `<p class="warn">No market board prices right now (${esc(j.pricesError)}), so nothing is in the Buy tier.</p>`
+    : "";
+  const groups = j.groups.filter((g) => C.hidden || g.tier !== 6).map((g) => {
+    const entries = g.entries.filter((e) => !C.kind || e.kind === C.kind);
+    if (!entries.length) return "";
+    const all = C.open.has(g.tier), shown = all ? entries : entries.slice(0, COLLECTION_TOP);
+    const more = entries.length > COLLECTION_TOP
+      ? `<p style="margin:6px 0 0"><button data-tier="${g.tier}">${all ? "Show fewer" : `Show all ${entries.length}`}</button></p>` : "";
+    const note = g.tier === 1 ? ` · cheapest listing on ${esc(j.buyMarket)}` : " · most owned first";
+    return `<div class="card"><h2>${g.tier}. ${esc(g.label)} <span class="muted">· ${entries.length}${note}</span></h2><div class="scroll"><table>
+      <thead><tr><th>Item</th><th>Kind</th><th>How to get it</th><th class="n" data-tip="Share of FFXIV Collect's players who own it">Owned</th><th class="n">Patch</th></tr></thead>
+      <tbody>${shown.map(collectionRow).join("")}</tbody></table></div>${more}</div>`;
+  }).join("");
+  if (C.view === "runs") {
+    $("#tab-collections").innerHTML = controls + runsView(j);
+    return;
+  }
+  const summary = `<p class="muted">Missing ${j.counts.mounts} mounts and ${j.counts.minions} minions, easiest to get first.</p>`;
+  $("#tab-collections").innerHTML = controls + summary + prices + (groups || `<div class="card"><p class="sec">Nothing missing here. Nice.</p></div>`);
+}
+
+/** The duty run list: older duties, most missing items per run first. */
+function runsView(j) {
+  const runs = j.runs.map((r) => ({ ...r, entries: r.entries.filter((e) => !C.kind || e.kind === C.kind) })).filter((r) => r.entries.length)
+    .sort((a, b) => b.entries.length - a.entries.length); // stable: keeps the server's tie order
+  const intro = `<p class="muted">${runs.length} older duties drop something you're missing, most per run first. Items you can buy, or get by quest or currency, are left out.</p>`;
+  if (!runs.length) return intro;
+  const item = (e) => `<span data-tip="${esc(`${e.kind} · ${e.ownedPercent}% own it · patch ${esc(e.patch)}`)}"><img class="ci" src="${esc(e.icon)}" alt="" loading="lazy"> ${esc(e.name)}</span>`;
+  const rows = runs.map((r) => `<tr><td>${esc(r.duty)}</td><td class="sec">${esc(r.type)}</td><td class="n">${r.entries.length}</td><td class="how">${r.entries.map(item).join(" &nbsp; ")}</td></tr>`).join("");
+  return intro + `<div class="card"><h2>Duty run list <span class="muted">· mostly soloable unsynced at 100</span></h2><div class="scroll"><table>
+    <thead><tr><th>Duty</th><th>Type</th><th class="n">Items</th><th>Can drop</th></tr></thead><tbody>${rows}</tbody></table></div></div>`;
+}
+
+$("#tab-collections").addEventListener("click", (e) => {
+  const b = e.target.closest("button");
+  if (!b) return;
+  if (b.dataset.view) { C.view = b.dataset.view; saved.set("collection-view", C.view); renderCollections(); }
+  else if (b.dataset.kind !== undefined) { C.kind = b.dataset.kind; saved.set("collection-kind", C.kind); renderCollections(); }
+  else if (b.dataset.tier) { const t = Number(b.dataset.tier); C.open.has(t) ? C.open.delete(t) : C.open.add(t); renderCollections(); }
+  else if (b.id === "co-refresh") {
+    b.disabled = true; b.textContent = "Refreshing…";
+    loadCollections(true).catch((err) => { $("#tab-collections").insertAdjacentHTML("beforeend", `<p class="error">${esc(err.message)}</p>`); b.disabled = false; b.textContent = "Refresh"; });
+  }
+});
+$("#tab-collections").addEventListener("change", (e) => {
+  if (e.target.id === "co-hidden") { C.hidden = e.target.checked; saved.set("collection-hidden", C.hidden); renderCollections(); }
+});
+
+if (SNAP) {
+  document.querySelector('nav a[data-tab="collections"]').remove();
+  document.querySelector('nav a[data-tab="profit"]').remove();
+  if (!SNAP.api["/api/rotation/filters"]) document.querySelector('nav a[data-tab="rotation"]').remove();
+  document.querySelector("header b").textContent = "Raid Snapshot";
+  const taken = new Date(SNAP.takenAt).toLocaleString([], { dateStyle: "medium", timeStyle: "short" });
+  FOOTERS.raids = `Snapshot taken ${taken} · read-only · ${FOOTERS.raids}`;
+  FOOTERS.rotation = `Snapshot taken ${taken} · read-only · ${FOOTERS.rotation}`;
+}
+showTab();
+</script>
+</body>
+</html>
